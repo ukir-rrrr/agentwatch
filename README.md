@@ -9,7 +9,7 @@ cron / 定期ジョブ向けのハートビート監視。Cloudflare Worker と 
 ## English summary
 
 - Create a D1 database, apply migrations, set `ADMIN_TOKEN` / `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_USER_ID`, replace `database_id` in `wrangler.jsonc`, deploy.
-- Add a monitor with the admin API. Wrap an existing job with `/ping/:token/start` → work → `/ping/:token` (or `/fail`).
+- Add a monitor from the Mantine dashboard (admin token in the header, stored in localStorage) or the admin API. Wrap an existing job with `/ping/:token/start` → work → `/ping/:token` (or `/fail`).
 - A per-minute Cron Trigger checks deadlines: never started (after grace), started but unfinished (max runtime), or explicit fail. Recovery is sent once when the monitor is OK again.
 
 ## できること
@@ -25,7 +25,7 @@ cron / 定期ジョブ向けのハートビート監視。Cloudflare Worker と 
   - **failed**: fail ping
   - **recovered**: 障害状態から success で復帰（重複通知なし）
 - 通知は LINE のみ。notifier インターフェースは email / Slack / Discord / webhook 追加用に分離
-- 管理は admin token 付きの最小 API + curl。読み取り専用ステータスページ (`/` / `/api/status`) あり
+- 管理は admin token 付きの最小 API + **Mantine (React) ダッシュボード**（同一 Worker の静的アセット）。`/` で一覧・作成・詳細。公開 JSON は `/api/status`
 
 ## セットアップ / デプロイ
 
@@ -44,8 +44,10 @@ npx wrangler d1 migrations apply agentwatch --remote
 npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
 npx wrangler secret put LINE_USER_ID
-npx wrangler deploy
+npm run deploy
 ```
+
+`npm run deploy` は Vite でフロントエンドをビルドしてから `wrangler deploy` します。UI は Worker の [静的アセット](https://developers.cloudflare.com/workers/static-assets/) として配信されます。
 
 ローカル確認:
 
@@ -53,9 +55,12 @@ npx wrangler deploy
 cp .dev.vars.example .dev.vars
 # .dev.vars に ADMIN_TOKEN などを書く
 npx wrangler d1 migrations apply agentwatch --local
-npx wrangler dev
+npm run dev
 npm test
+npm run dry-run
 ```
+
+ブラウザで `http://127.0.0.1:8787/` を開き、ヘッダーの「管理トークン」に `.dev.vars` の `ADMIN_TOKEN` を入れると作成・編集ができます（localStorage に保存）。配色はライト / ダークを切り替えられます。
 
 Cron の解釈は **UTC** です。
 
@@ -150,14 +155,24 @@ curl -sS -X PATCH "$HOST/admin/monitors/<ID>" \
 curl -sS -X DELETE -H "Authorization: Bearer $ADMIN_TOKEN" "$HOST/admin/monitors/<ID>"
 ```
 
-作成レスポンスの `urls.start` / `urls.success` / `urls.fail` をジョブから叩きます。公開ステータス (`/`, `/api/status`) にはトークンは出ません。
+作成レスポンスの `urls.start` / `urls.success` / `urls.fail` をジョブから叩きます。ダッシュボードの詳細画面からもコピーできます。公開 JSON (`/api/status`) にはトークンは出ません。
+
+## UI
+
+React + Mantine の SPA です。`npm run build:web` で `web/dist` に出力し、Worker が同じオリジンで配信します。
+
+- ダッシュボード: 状態バッジ（OK / 遅延 / 未起動 / 未完了 / 失敗）、最終 ping、最終アラート
+- 詳細: 最近の ping、ping URL のコピー
+- 作成・編集: 名前、cron または周期、猶予、最大実行時間
 
 ## 開発
 
 ```bash
 npm test
-npx wrangler deploy --dry-run
+npm run dry-run
 ```
+
+`npm run dry-run` はフロントエンドの Vite ビルドのあと `wrangler deploy --dry-run` を実行します。
 
 状態機械のテスト対象: on-time / late / never started / started-not-finished / fail / recovery。
 

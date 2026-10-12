@@ -12,13 +12,6 @@ export function text(body: string, status = 200): Response {
   });
 }
 
-export function html(body: string, status = 200): Response {
-  return new Response(body, {
-    status,
-    headers: { "content-type": "text/html; charset=utf-8" },
-  });
-}
-
 export function timingSafeEqual(left: string, right: string): boolean {
   const encoder = new TextEncoder();
   const a = encoder.encode(left);

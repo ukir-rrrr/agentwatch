@@ -2,18 +2,15 @@ import { runDeadlineChecks } from "./checker";
 import { json, requireAdmin, text } from "./http";
 import { handleAdmin } from "./routes/admin";
 import { handlePing, type PingAction } from "./routes/ping";
-import { handleStatusJson, handleStatusPage } from "./routes/status";
+import { handleStatusJson } from "./routes/status";
 
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const now = Date.now();
 
-    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/status")) {
-      return handleStatusPage(env);
-    }
     if (request.method === "GET" && url.pathname === "/api/status") {
-      return handleStatusJson(env);
+      return handleStatusJson(env, now);
     }
     if (request.method === "GET" && url.pathname === "/health") {
       return text("ok");

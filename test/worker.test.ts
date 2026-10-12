@@ -18,15 +18,16 @@ function adminHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 describe("worker HTTP", () => {
-  it("serves health and a read-only status page", async () => {
+  it("serves health and public status JSON", async () => {
     const health = await fetchWorker("/health");
     expect(health.status).toBe(200);
     expect(await health.text()).toBe("ok");
 
-    const page = await fetchWorker("/");
-    expect(page.status).toBe(200);
-    expect(page.headers.get("content-type")).toContain("text/html");
-    expect(await page.text()).toContain("agentwatch");
+    const status = await fetchWorker("/api/status");
+    expect(status.status).toBe(200);
+    const body = (await status.json()) as { service: string; monitors: unknown[] };
+    expect(body.service).toBe("agentwatch");
+    expect(Array.isArray(body.monitors)).toBe(true);
   });
 
   it("rejects admin calls without a token", async () => {
@@ -59,13 +60,25 @@ describe("worker HTTP", () => {
     expect(success.status).toBe(200);
 
     const listed = await fetchWorker("/admin/monitors", { headers: adminHeaders() });
-    const payload = (await listed.json()) as { monitors: Array<{ status: string; name: string }> };
+    const payload = (await listed.json()) as {
+      monitors: Array<{ id: string; status: string; name: string; displayStatus: string }>;
+    };
     expect(payload.monitors[0]?.name).toBe("supabase-keepalive");
     expect(payload.monitors[0]?.status).toBe("ok");
+    expect(payload.monitors[0]?.displayStatus).toBe("ok");
+
+    const detail = await fetchWorker(`/admin/monitors/${payload.monitors[0]?.id}`, {
+      headers: adminHeaders(),
+    });
+    const detailBody = (await detail.json()) as {
+      recentPings: Array<{ action: string }>;
+    };
+    expect(detailBody.recentPings.map((ping) => ping.action)).toEqual(["success", "start"]);
 
     const publicStatus = await fetchWorker("/api/status");
     const statusBody = await publicStatus.text();
     expect(statusBody).toContain("supabase-keepalive");
+    expect(statusBody).toContain("displayStatus");
     expect(statusBody).not.toContain(body.pingToken);
   });
 });

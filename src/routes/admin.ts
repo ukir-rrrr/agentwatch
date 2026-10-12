@@ -1,13 +1,15 @@
-import { parseCron } from "../schedule";
+import { displayStatus, iso, lastPingAt } from "../display-status";
 import {
   createMonitor,
   deleteMonitor,
   getMonitor,
   getState,
   listMonitors,
+  listRecentPings,
   updateMonitor,
 } from "../db";
 import { json, readJson } from "../http";
+import { formatSchedule, parseCron } from "../schedule";
 import type { CreateMonitorInput, Monitor } from "../types";
 
 type MonitorBody = {
@@ -29,7 +31,7 @@ export async function handleAdmin(
     const monitors = await listMonitors(env.DB);
     const items = [];
     for (const monitor of monitors) {
-      items.push(await serializeMonitor(env.DB, monitor, request));
+      items.push(await serializeMonitor(env.DB, monitor, request, now, false));
     }
     return json({ monitors: items });
   }
@@ -39,7 +41,7 @@ export async function handleAdmin(
     const input = validateCreate(body);
     if (input instanceof Response) return input;
     const monitor = await createMonitor(env.DB, input, now);
-    return json(await serializeMonitor(env.DB, monitor, request), 201);
+    return json(await serializeMonitor(env.DB, monitor, request, now, true), 201);
   }
 
   if (!id) {
@@ -49,7 +51,7 @@ export async function handleAdmin(
   if (request.method === "GET") {
     const monitor = await getMonitor(env.DB, id);
     if (!monitor) return json({ error: "not found" }, 404);
-    return json(await serializeMonitor(env.DB, monitor, request));
+    return json(await serializeMonitor(env.DB, monitor, request, now, true));
   }
 
   if (request.method === "PATCH") {
@@ -58,7 +60,7 @@ export async function handleAdmin(
     if (error) return error;
     const monitor = await updateMonitor(env.DB, id, body, now);
     if (!monitor) return json({ error: "not found" }, 404);
-    return json(await serializeMonitor(env.DB, monitor, request));
+    return json(await serializeMonitor(env.DB, monitor, request, now, true));
   }
 
   if (request.method === "DELETE") {
@@ -70,14 +72,28 @@ export async function handleAdmin(
   return json({ error: "method not allowed" }, 405);
 }
 
-async function serializeMonitor(db: D1Database, monitor: Monitor, request: Request) {
+async function serializeMonitor(
+  db: D1Database,
+  monitor: Monitor,
+  request: Request,
+  now: number,
+  includePings: boolean,
+) {
   const state = await getState(db, monitor.id);
   const origin = new URL(request.url).origin;
   const base = `${origin}/ping/${monitor.pingToken}`;
+  const recentPings = includePings
+    ? (await listRecentPings(db, monitor.id)).map((ping) => ({
+        id: ping.id,
+        action: ping.action,
+        at: iso(ping.at),
+      }))
+    : undefined;
   return {
     id: monitor.id,
     name: monitor.name,
     scheduleKind: monitor.scheduleKind,
+    schedule: formatSchedule(monitor),
     cron: monitor.cronExpr,
     periodSeconds: monitor.periodSeconds,
     graceSeconds: monitor.graceSeconds,
@@ -90,7 +106,9 @@ async function serializeMonitor(db: D1Database, monitor: Monitor, request: Reque
       fail: `${base}/fail`,
     },
     status: state.status,
+    displayStatus: displayStatus(monitor, state, now),
     alertingKind: state.alertingKind,
+    lastPingAt: iso(lastPingAt(state)),
     lastStartAt: iso(state.lastStartAt),
     lastSuccessAt: iso(state.lastSuccessAt),
     lastFailAt: iso(state.lastFailAt),
@@ -99,6 +117,7 @@ async function serializeMonitor(db: D1Database, monitor: Monitor, request: Reque
     lastAlertAt: iso(state.lastAlertAt),
     createdAt: iso(monitor.createdAt),
     updatedAt: iso(monitor.updatedAt),
+    recentPings,
   };
 }
 
@@ -155,8 +174,4 @@ function validateSchedule(body: MonitorBody): { cron?: string; periodSeconds?: n
     return json({ error: "periodSeconds must be > 0" }, 400);
   }
   return { periodSeconds: body.periodSeconds };
-}
-
-function iso(value: number | null): string | null {
-  return value == null ? null : new Date(value).toISOString();
 }

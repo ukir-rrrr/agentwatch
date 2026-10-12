@@ -1,10 +1,10 @@
-import { getMonitorByToken, getState, saveState } from "../db";
+import { getMonitorByToken, getState, recordPing, saveState } from "../db";
 import { text } from "../http";
 import { createNotifier, safeNotify } from "../notify";
 import { applyFailPing, applyStartPing, applySuccessPing } from "../state-machine";
-import type { Transition } from "../types";
+import type { PingAction, Transition } from "../types";
 
-export type PingAction = "start" | "success" | "fail";
+export type { PingAction };
 
 export async function handlePing(
   env: Env,
@@ -26,6 +26,7 @@ export async function handlePing(
         : applySuccessPing(state, now);
 
   await saveState(env.DB, monitor.id, transition.state, now);
+  await recordPing(env.DB, monitor.id, action, now);
 
   if (transition.alerts.length > 0) {
     const notifier = createNotifier(env);

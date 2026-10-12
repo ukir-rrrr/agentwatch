@@ -4,6 +4,8 @@ export type MonitorStatus = "ok" | "alerting" | "unknown";
 
 export type AlertKind = "never_started" | "unfinished" | "failed" | "recovered";
 
+export type PingAction = "start" | "success" | "fail";
+
 export type Monitor = {
   id: string;
   name: string;
@@ -30,6 +32,13 @@ export type RuntimeState = {
   lastAlertAt: number | null;
   lastAlertSlot: number | null;
   lastAlertRunStartedAt: number | null;
+};
+
+export type PingRecord = {
+  id: string;
+  monitorId: string;
+  action: PingAction;
+  at: number;
 };
 
 export type Alert = {

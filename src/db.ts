@@ -1,5 +1,5 @@
 import { emptyState } from "./state-machine";
-import type { CreateMonitorInput, Monitor, RuntimeState } from "./types";
+import type { CreateMonitorInput, Monitor, PingAction, PingRecord, RuntimeState } from "./types";
 
 type MonitorRow = {
   id: string;
@@ -111,6 +111,7 @@ export async function getMonitorByToken(db: D1Database, token: string): Promise<
 }
 
 export async function deleteMonitor(db: D1Database, id: string): Promise<boolean> {
+  await db.prepare("DELETE FROM pings WHERE monitor_id = ?").bind(id).run();
   await db.prepare("DELETE FROM monitor_state WHERE monitor_id = ?").bind(id).run();
   const result = await db.prepare("DELETE FROM monitors WHERE id = ?").bind(id).run();
   return (result.meta.changes ?? 0) > 0;
@@ -201,6 +202,44 @@ export async function saveState(db: D1Database, monitorId: string, state: Runtim
       monitorId,
     )
     .run();
+}
+
+const PING_HISTORY_LIMIT = 50;
+
+export async function recordPing(
+  db: D1Database,
+  monitorId: string,
+  action: PingAction,
+  now: number,
+): Promise<void> {
+  await db
+    .prepare("INSERT INTO pings (id, monitor_id, action, at) VALUES (?, ?, ?, ?)")
+    .bind(generateId(), monitorId, action, now)
+    .run();
+
+  const cutoff = await db
+    .prepare("SELECT at FROM pings WHERE monitor_id = ? ORDER BY at DESC LIMIT 1 OFFSET ?")
+    .bind(monitorId, PING_HISTORY_LIMIT - 1)
+    .first<{ at: number }>();
+  if (cutoff) {
+    await db
+      .prepare("DELETE FROM pings WHERE monitor_id = ? AND at < ?")
+      .bind(monitorId, cutoff.at)
+      .run();
+  }
+}
+
+export async function listRecentPings(db: D1Database, monitorId: string): Promise<PingRecord[]> {
+  const { results } = await db
+    .prepare("SELECT id, monitor_id, action, at FROM pings WHERE monitor_id = ? ORDER BY at DESC LIMIT ?")
+    .bind(monitorId, PING_HISTORY_LIMIT)
+    .all<{ id: string; monitor_id: string; action: PingAction; at: number }>();
+  return (results ?? []).map((row) => ({
+    id: row.id,
+    monitorId: row.monitor_id,
+    action: row.action,
+    at: row.at,
+  }));
 }
 
 export type MonitorSnapshot = {
