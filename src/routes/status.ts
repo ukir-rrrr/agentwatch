@@ -47,11 +47,12 @@ export async function handleStatusPage(env: Env): Promise<Response> {
   <title>agentwatch</title>
   <style>
     :root { color-scheme: dark; }
-    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; background: #0f1419; color: #e7ecf1; }
+    body { font-family: "Noto Sans", "Noto Sans CJK JP", "WenQuanYi Micro Hei", ui-sans-serif, system-ui, sans-serif; margin: 0; background: #0f1419; color: #e7ecf1; }
     main { max-width: 960px; margin: 0 auto; padding: 32px 20px; }
     h1 { font-size: 1.4rem; margin: 0 0 4px; }
     p { color: #9aa8b5; margin: 0 0 24px; }
-    table { width: 100%; border-collapse: collapse; background: #171e26; border-radius: 12px; overflow: hidden; }
+    .table-wrap { overflow-x: auto; border-radius: 12px; }
+    table { width: 100%; min-width: 720px; border-collapse: collapse; background: #171e26; }
     th, td { text-align: left; padding: 12px 14px; font-size: 0.92rem; }
     th { color: #9aa8b5; font-weight: 600; border-bottom: 1px solid #243040; }
     td { border-bottom: 1px solid #1d2733; }
@@ -66,6 +67,7 @@ export async function handleStatusPage(env: Env): Promise<Response> {
   <main>
     <h1>agentwatch</h1>
     <p>read-only heartbeat status · tokens are hidden</p>
+    <div class="table-wrap">
     <table>
       <thead>
         <tr><th>名前</th><th>状態</th><th>スケジュール</th><th>最終 start</th><th>最終 success</th><th>アラート</th></tr>
@@ -74,6 +76,7 @@ export async function handleStatusPage(env: Env): Promise<Response> {
         ${rows || `<tr><td colspan="6">モニターはまだありません</td></tr>`}
       </tbody>
     </table>
+    </div>
   </main>
 </body>
 </html>`);
