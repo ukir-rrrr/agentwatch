@@ -55,11 +55,11 @@ export function applySuccessPing(state: RuntimeState, now: number): Transition {
 }
 
 export function applyFailPing(state: RuntimeState, now: number): Transition {
-  const runStartedAt = state.currentRunStartedAt ?? now;
+  const runStartedAt = state.currentRunStartedAt ?? state.lastAlertRunStartedAt ?? now;
   const alreadyFailedThisRun =
     state.status === "alerting" &&
     state.alertingKind === "failed" &&
-    state.lastAlertRunStartedAt === runStartedAt;
+    (state.currentRunStartedAt == null || state.lastAlertRunStartedAt === state.currentRunStartedAt);
 
   const next: RuntimeState = {
     ...state,
