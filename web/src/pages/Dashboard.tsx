@@ -87,7 +87,7 @@ export function Dashboard() {
                       <StatusBadge status={monitor.displayStatus} />
                     </Table.Td>
                     <Table.Td>
-                      <Text ff="monospace" size="sm">
+                      <Text ff="monospace" size="sm" style={{ whiteSpace: "pre" }}>
                         {monitor.schedule}
                       </Text>
                     </Table.Td>
